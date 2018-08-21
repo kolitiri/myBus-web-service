@@ -34,12 +34,15 @@ class TflApi(Api):
 
 		stopPoints = {'stopPoints': []}
 		for sp in resp['stopPoints']:
-			ret = {
-				'stopLetter': sp['stopLetter'],
-				'naptanId': sp['naptanId'],
-				'distance': sp['distance'],
-			}
-			stopPoints['stopPoints'].append(ret)
+			try:
+				ret = {
+					'stopLetter': sp['stopLetter'],
+					'naptanId': sp['naptanId'],
+					'distance': sp['distance'],
+				}
+				stopPoints['stopPoints'].append(ret)
+			except KeyError:
+				continue
 
 		return stopPoints
 
