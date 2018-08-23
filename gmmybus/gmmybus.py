@@ -1,9 +1,13 @@
+import sys
+import logging
+
 from flask import (
-	abort,
-	Flask,
-	jsonify,
-	request,
+    abort,
+    Flask,
+    jsonify,
+    request,
 )
+
 import apis
 
 
@@ -11,39 +15,42 @@ app = Flask(__name__)
 
 @app.route('/stops', methods=['POST'])
 def get_stops():
+    data = request.get_json()
 
-	data = request.get_json()
+    api = apis.TflApi()
 
-	api_name = data['application']['apiName']
+    resp = api.make_stops_request(data)
 
-	api = None
-	if api_name == 'TflApi':
-		api = apis.TflApi(api_name)
-
-	if api is not None:
-		resp = api.make_stops_request(data)
-		return jsonify(resp)
-	else:
-		abort(400)
-
+    if resp:
+        return jsonify(resp)
+    else:
+        # Request either failed of was not 200
+        abort(500)
 
 @app.route('/predictions', methods=['POST'])
 def get_predictions():
 
-	data = request.get_json()
+    data = request.get_json()
 
-	api_name = data['application']['apiName']
+    api = apis.TflApi()
 
-	api = None
-	if api_name == 'TflApi':
-		api = apis.TflApi(api_name)	
+    resp = api.make_predictions_request(data)
 
-	if api is not None:
-		resp = api.make_predictions_request(data)
-		return jsonify(resp)
-	else:
-		abort(400)
+    if resp:
+        return jsonify(resp)
+    else:
+        # Request either failed of was not 200
+        abort(500)
+
+def set_up_logging():
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(
+        '%(asctime)s:%(name)s:%(levelname)s: %(message)s')
+    )
+    app.logger.addHandler(handler)
+    app.logger.setLevel(logging.INFO)
 
 
 if __name__ == '__main__':
-	app.run()
+    set_up_logging()
+    app.run()
