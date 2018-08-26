@@ -1,102 +1,136 @@
-import requests
+import json
 import logging
+import requests
 
 
 class Api():
+    """ API class. """
     def __init__(self):
         self.log = logging.getLogger('flask.app.apis')
 
 
 class TflApi(Api):
+    """ TFL API class """
     def __init__(self):
         super().__init__()
         self.stops_domain = 'https://api.tfl.gov.uk/StopPoint'
 
     def make_stops_request(self, data):
-        """ Make a stops request TFL Unified API
+        """ Make a stops request to TFL Unified API
 
-            https://api.tfl.gov.uk/Stoppoint?
-            lat=51.488998&lon=-0.284000&radius=300&
-            stoptypes=NaptanPublicBusCoachTram&returnLines=False
+            Example request:
+                https://api.tfl.gov.uk/Stoppoint?
+                lat=51.488998&lon=-0.284000&radius=300&
+                stoptypes=NaptanPublicBusCoachTram&returnLines=False
+
+            Args:
+                data (dict): The request data
+
+            Returns:
+                (status, stopPoints) (tuple): The status of the request to TFL,
+                                                along with the response data if
+                                                the request was successful
         """
-        params = {
-            'lat': data['location']['latitude'],
-            'lon': data['location']['longtitude'],
-            'radius': data['location']['radius'],
-            'stopTypes': data['location']['stopTypes'],
-            'returnLines': data['location']['returnLines'],
-        }
+        try:
+            params = {
+                'lat': data['location']['latitude'],
+                'lon': data['location']['longtitude'],
+                'radius': data['location']['radius'],
+                'stopTypes': data['location']['stopTypes'],
+                'returnLines': data['location']['returnLines'],
+            }
+        except KeyError:
+            return 400, None
 
         try:
             r = requests.get(self.stops_domain, params=params)
         except requests.exceptions.RequestException as e:
-            self.log.error(e)
-            return
+            self.log.error('TFL Api request failed:{}'.format(e))
+            return 500, None
 
         if r.status_code != 200:
             self.log.info(
                 'TFL Api request failed with status:{}'.format(r.status_code)
             )
-            return
+            return r.status_code, None
 
-        # TODO: Need to catch JSONDecodeError
-        tfl_resp = r.json()
+        try:
+            tfl_resp = r.json()
+        except json.decoder.JSONDecodeError as e:
+            # TFL endpoint might be wrong
+            self.log.error('JSONDecodeError:{}'.format(e))
+            return 500, None
 
         # Filter the response and return only required fields
         # stopLetter, naptanId, distance
         stopPoints = {'stopPoints': []}
-        for sp in tfl_resp['stopPoints']:
+        for stoppoint in tfl_resp['stopPoints']:
             try:
-                ret = {
-                    'stopLetter': sp['stopLetter'],
-                    'naptanId': sp['naptanId'],
-                    'distance': sp['distance'],
+                node = {
+                    'stopLetter': stoppoint['stopLetter'],
+                    'naptanId': stoppoint['naptanId'],
+                    'distance': stoppoint['distance'],
                 }
-                stopPoints['stopPoints'].append(ret)
+                stopPoints['stopPoints'].append(node)
             except KeyError:
                 # Unfortunately some stopPoints are
                 # inconsistent. Ignore them for now 
                 continue
 
-        return stopPoints
+        return r.status_code, stopPoints
 
     def make_predictions_request(self, data):
         """ Make a predictions requests to TFL Unified API
 
-            https://api.tfl.gov.uk/StopPoint/490007705L/Arrivals?mode=bus
-        """
+            Example request:
+                https://api.tfl.gov.uk/StopPoint/490007705L/Arrivals?mode=bus
 
+            Args:
+                data (dict): The request data
+
+            Returns:
+                (status, predictions) (tuple): The status of the request to TFL,
+                                                along with the response data if
+                                                the request was successful
+        """
         params = {
             'mode': 'bus'
         }
 
-        naptanId = data['stop']['naptanId']
+        try:
+            naptanId = data['stop']['naptanId']
+        except KeyError:
+            return 400, None
 
         url = '{}/{}/Arrivals'.format(self.stops_domain, naptanId)
 
         try:
             r = requests.get(url, params=params)
         except requests.exceptions.RequestException as e:
-            self.log.error(e)
-            return
+            self.log.error('TFL Api request failed:{}'.format(e))
+            return 500, None
 
         if r.status_code != 200:
             self.log.info(
                 'TFL Api request failed with status:{}'.format(r.status_code)
             )
-            return
+            return r.status_code, None
 
-        # TODO: Need to catch JSONDecodeError
-        tfl_resp = r.json()
+        try:
+            tfl_resp = r.json()
+        except json.decoder.JSONDecodeError as e:
+            # TFL endpoint might be wrong
+            self.log.error('JSONDecodeError:{}'.format(e))
+            return 500, None
 
         # Filter the response and return only required fields
         # lineName, timeToStation
         predictions = []
-        for pre in tfl_resp:
-            ret = {
-                'lineName': pre['lineName'],
-                'timeToStation': pre['timeToStation'],
+        for prediction in tfl_resp:
+            node = {
+                'lineName': prediction['lineName'],
+                'timeToStation': prediction['timeToStation'],
             }
-            predictions.append(ret)
+            predictions.append(node)
 
-        return predictions
+        return r.status_code, predictions
