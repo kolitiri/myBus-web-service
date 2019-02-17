@@ -49,7 +49,7 @@ def get_predictions():
     if data:
         status_code, resp = api.make_predictions_request(data)
 
-        if status_code == 200 and resp:
+        if status_code == 200 and resp is not None:
             return jsonify(resp)
         else:
             abort(status_code)
@@ -69,4 +69,4 @@ def set_up_logging():
 
 if __name__ == '__main__':
     set_up_logging()
-    app.run(debug=True)
+    app.run(debug=False)
